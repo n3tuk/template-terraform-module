@@ -1,0 +1,156 @@
+---
+name: Template Integrations
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  id-token: write
+  contents: write
+  issues: write
+  checks: write
+  pull-requests: write
+
+jobs:
+  generate-module:
+    name: Generate the Terraform module
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python v3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.11
+
+      - name: Set up Go v1.20
+        uses: actions/setup-go@v4
+        with:
+          go-version: v1.20
+          check-latest: true
+          cache-dependency-path: .github/workflows/template-integrations.yaml
+
+      - name: Install task v3.23.0
+        run: go install github.com/go-task/task/v3/cmd/task@v3.23.0
+
+      - name: Configure task to skip pre-checks
+        run: touch ${{ github.workspace }}/.skip-pre-checks
+
+      - name: Install Python requirements
+        run: task dependencies
+
+      - name: Render the templates
+        run: task render
+
+      - name: Upload the generated module
+        uses: actions/upload-artifact@v3
+        with:
+          name: generated-module
+          path: render/name
+          retention-days: 1
+
+  terraform-checks:
+    name: Check the Terraform module
+    runs-on: ubuntu-latest
+    needs: generate-module
+    steps:
+      - name: Download the generated module
+        id: download
+        uses: actions/download-artifact@v3
+        with:
+          name: generated-module
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version-file: '${{ steps.download.outputs.download-path }}/tests/go.mod'
+          check-latest: true
+          cache-dependency-path: '${{ steps.download.outputs.download-path }}/tests/go.sum'
+
+      - name: Initilise the git repository
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git init .
+          git add .
+          git commit -m 'Initial commit'
+
+      - name: Prepare the cache directories
+        run: |
+          echo 'plugin_cache_dir="$HOME/.terraform.d/plugin-cache"' > ~/.terraformrc
+          mkdir -p $HOME/.terraform.d/plugin-cache
+          mkdir -p $HOME/.tflint.d/plugins
+
+      - name: Cache the Terraform providers
+        uses: actions/cache@v3
+        with:
+          path: ~/.terraform.d/plugin-cache
+          key: terraform-${{ runner.os }}-${{ hashFiles('**/terraform.tf') }}
+          restore-keys: terraform-${{ runner.os }}-
+
+      - name: Setup the Terraform environment with v1.4.6
+        uses: hashicorp/setup-terraform@v2
+        with:
+          # As we not longer include terraform-version.js inside the
+          # configuration, we cannot automatically fetch the default version for
+          # new repositories for testing, therefore hard-code it to 1.4.6 here
+          terraform_version: 1.4.6
+          terraform_wrapper: false
+
+      - name: Initilise Terraform
+        # Terraform Modules and Sub-Modules cannot be reliably initialised when
+        # they do not have full Provider configurations, so only run fmt and
+        # static code analysis should be run in these cases:
+        #   https://github.com/antonbabenko/pre-commit-terraform#terraform_validate
+        id: init
+        env:
+          TF_TOKEN_app_terraform_io: ${{ secrets.TFE_TOKEN }}
+        working-directory: ${{ steps.download.outputs.download-path }}
+        run: terraform init -backend=false
+
+      - name: Validate the Terraform module
+        id: validate
+        working-directory: .
+        run: terraform validate
+
+      - name: fmt Check the Terraform module
+        id: fmt
+        working-directory: .
+        run: terraform fmt -check -diff
+
+      - name: Cache the tflint plugins directory
+        uses: actions/cache@v3
+        with:
+          path: ~/.tflint.d/plugins
+          key: tflint-${{ runner.os }}-${{ hashFiles('.tflint.hcl') }}
+          restore-keys: tflint-${{ runner.os }}-
+
+      - name: Setup the tflint environment
+        uses: terraform-linters/setup-tflint@v3
+        with:
+          tflint_version: latest
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Initilise tflint
+        env:
+          # Set this to bypass the rate limit of 60 requests per hour
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tflint --init \
+            --config=${{ steps.download.outputs.download-path }}/.tflint.hcl
+
+      - name: Run tflint against the module
+        working-directory: ${{ steps.download.outputs.download-path }}
+        run: |
+          tflint --format compact \
+            --config=${{ steps.download.outputs.download-path }}/.tflint.hcl
+
+      - name: Install task
+        run: go install github.com/go-task/task/v3/cmd/task@v3.23.0
+
+      - name: Run TerraTest tests
+        working-directory: ${{ steps.download.outputs.download-path }}
+        run: task tests:run

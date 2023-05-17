@@ -1,0 +1,9 @@
+---
+version: 3
+
+includes:
+{%- for name in cookiecutter.components.submodules|sort %}
+  {{ name }}:
+    taskfile: submodule.yaml
+    dir: ../submodules/{{ name }}
+{%- endfor %}
