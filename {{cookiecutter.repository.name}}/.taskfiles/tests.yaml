@@ -1,0 +1,86 @@
+---
+version: 3
+
+tasks:
+  default:
+    desc: Run the TerraTest tests against the Terraform module
+    deps:
+      - task: pre-checks
+    cmds:
+      - task: run
+
+  pre-checks:
+    desc: Check the environment before running
+    internal: true
+    silent: true
+    run: once
+    cmds:
+      - cmd: |-
+          test -x "$(which go 2>/dev/null)" \
+            || (echo "Cannot find 'go'. Please install before trying again."; exit 1)
+    status:
+      # Setting this file will bypass pre-checks (only use if you are sure)
+      - test -f ../../.skip-pre-checks
+
+  mod:
+    desc: Update the module dependencies for GoLang files
+    deps:
+      - task: pre-checks
+    summary: |
+      Update the module dependencies for GoLang files
+    sources:
+      - '*.go'
+    cmds:
+      - cmd: go mod tidy
+
+  fmt:
+    desc: Reformat the Go files using gofmt
+    deps:
+      - task: pre-checks
+      - task: mod
+    summary: |
+      Reformat the GoLang files using gofmt
+    sources:
+      - '*.go'
+    cmds:
+      - cmd: go fmt
+
+  vet:
+    desc: Run vet against the Go files
+    summary: |
+      Run vet against the GoLang files
+    deps:
+      - task: mod
+      - task: fmt
+    sources:
+      - '*.go'
+    cmds:
+      - cmd: go vet
+
+  run:
+    desc: Run the TerraTest Tests
+    summary: |
+      Run the TerraTests Tests
+    deps:
+      - task: mod
+      - task: fmt
+      - task: vet
+    sources:
+      - '*.go'
+      - '../*.tf'
+{%- if cookiecutter.components.examples|length > 0 %}
+      - '../examples/*/*.tf'
+{%- endif %}
+{%- if cookiecutter.components.submodules|length > 0 %}
+      - '../submodules/*/*.tf'
+{%- endif %}
+    cmds:
+      - cmd: go test -timeout 60m -count 1 -v ./...
+
+  clean:
+    desc: Clean the temporary files from TerraTest
+    summary: |
+      Run commands to clean out all temporary files and cached resources from
+      these tests.
+    cmds:
+      - cmd: rm -rf .task

@@ -1,0 +1,1 @@
+{{ cookiecutter.components.terraform.version }}

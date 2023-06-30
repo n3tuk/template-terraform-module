@@ -1,0 +1,139 @@
+---
+version: 3
+
+tasks:
+  default:
+    desc: Run the default tasks
+    cmds:
+      - task: fmt
+      - task: validate
+      - task: docs
+      - task: lint
+      - task: security
+
+  pre-checks:
+    desc: Check the environment before running
+    internal: true
+    silent: true
+    run: once
+    cmds:
+      - cmd: |-
+          test -x "$(which terraform 2>/dev/null)" \
+            || (echo "Cannot find 'terraform'. Please install before trying again."; exit 1)
+      - cmd: |-
+          test -x "$(which terraform-docs 2>/dev/null)" \
+            || (echo "Cannot find 'terraform'-docs. Please install before trying again."; exit 1)
+      - cmd: |-
+          test -n "$(which markdownlint 2>/dev/null)" \
+            || (echo "Cannot find 'markdownlint'. Please install before trying again."; exit 1)
+      - cmd: |-
+          test -x "$(which tflint 2>/dev/null)" \
+            || (echo "Cannot find 'tflint'. Please install before trying again."; exit 1)
+      - cmd: |-
+          test -x "$(which tfsec 2>/dev/null)" \
+            || (echo "Cannot find 'tfsec'. Please install before trying again."; exit 1)
+    status:
+      # Setting this file will bypass pre-checks (only use if you are sure)
+      - test -f ../../.skip-pre-checks
+
+  docs:
+    desc: Update the README.md file for this example Terraform configuration
+    summary: |
+      Update all README.md files for this example Terraform configuration using
+      terraform-docs to ensure that all documentation is up-to-date.
+    deps:
+      - task: pre-checks
+    sources:
+      - '*.tf'
+      - '../../.terraform-docs.yaml'
+      - '../../.markdownlint.yaml'
+    cmds:
+      - cmd: terraform-docs --config ../../.terraform-docs.yaml .
+      - cmd: markdownlint --config ../../.markdownlint.yaml *.md
+    generates:
+      - 'README.md'
+
+  fmt:
+    desc: Reformat the syntax of the Terraform configuration
+    summary: |
+      Reformat the Terraform configuration using terraform.
+    deps:
+      - task: pre-checks
+    sources:
+      - '*.tf'
+    cmds:
+      - cmd: terraform fmt -write=true
+
+  init:
+    desc: Initilise the Terraform configuration for testing
+    summary: |
+      Initilise the Terraform configuration and pull down the latest providers
+      and modules, as defined in the configuration.
+    internal: true
+    deps:
+      - task: pre-checks
+    sources:
+      - '*.tf'
+      - '../../*.tf'
+{%- if cookiecutter.components.submodules|length > 0 %}
+      - '../../submodules/*/*.tf'
+{%- endif %}
+    cmds:
+      # Do not attempt to initialise a full backend as well, as this is an
+      # example configuration only, and is here purely for testing
+      - cmd: terraform init -upgrade=true -get=true -backend=false
+    generates:
+      - .terraform.lock.hcl
+      - .terraform/environemnt
+      - .terraform/terraform.tfstate
+
+  validate:
+    desc: Validate the Terraform configuration
+    summary: |
+      Validate the Terraform configuration using terraform.
+    deps:
+      - task: init
+      - task: fmt
+    sources:
+      - '*.tf'
+      - '../../*.tf'
+{%- if cookiecutter.components.submodules|length > 0 %}
+      - '../../submodules/*/*.tf'
+{%- endif %}
+    cmds:
+      - cmd: terraform validate
+
+  lint:
+    desc: Run initial validation of the run-time configuration
+    summary: |
+      Run linting checks against the configuration to check run-time values,
+      such as instance types and naming.
+    deps:
+      - task: validate
+    sources:
+      - '../../.tflint.hcl'
+      - '*.tf'
+    cmds:
+      - cmd: tflint --config ../../.tflint.hcl --color --init
+      - cmd: tflint --config ../../.tflint.hcl --color
+
+  security:
+    desc: Statically analyise the Terraform configuration
+    summary: |
+      Run static analysis across the Terraform configuration using tfsec to find
+      any bad configurations or potential security issues.
+    deps:
+      - task: pre-checks
+    sources:
+      - '*.tf'
+    cmds:
+      - cmd: tfsec --concise-output .
+
+  clean:
+    desc: Remove all temporary files from this Terraform configuration
+    summary: |
+      Run commands to clean out all temporary files and cached resources from
+      this Terraform configuration.
+    cmds:
+      - cmd: rm -rf .terraform
+      - cmd: rm -rf .terraform.lock.hcl

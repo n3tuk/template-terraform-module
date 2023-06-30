@@ -1,0 +1,28 @@
+# Local .terraform directories, plus Terraform States and Variables
+**/.terraform
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+*.tfplan
+
+# Ignore Terraform CLI configuration files
+.terraformrc
+terraform.tfrc
+
+# Ignore all .lock.hcl files for Terraform as this is a module
+.terraform.lock.hcl
+
+# Log files
+logs/**
+
+# Ignore cookiecutter repo setup files (this will normally be
+# removed automatically, but they should not be added back in)
+.github/workflows/terraform-module-ci.yaml
+.github/workflows/initialise-repository.yaml
+{% raw %}{{cookiecutter.repository.name}}{% endraw %}/
+render/
+
+# Ignore taskfile processing directory and files
+.skip-pre-checks
+.task

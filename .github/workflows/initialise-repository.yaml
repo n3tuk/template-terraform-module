@@ -1,0 +1,138 @@
+---
+name: Repository Initialisation
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - cookiecutter.json
+
+permissions:
+  id-token: read
+  contents: write
+  issues: write
+  pull-requests: write
+
+defaults:
+  run:
+    # Error handling and pipefile must be explicitly set via the default shell
+    #   https://github.com/actions/runner/issues/353#issuecomment-1067227665
+    shell: bash --noprofile --norc -eo pipefail {0}
+
+jobs:
+  setup:
+    name: Re-initialize the Repository
+    runs-on: ubuntu-latest
+    env:
+      REPO_SETUP_TOKEN: ${{ secrets.COOKIE_CUTTER_TOKEN || secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Template Check
+        id: check
+        # This workflow runs when the cookiecutter.json file is modified. This
+        # is the trick to initialise a repository once it's been cloned from a
+        # template, but we don't want to run this action if this file is
+        # modified in the origin template repository itself.
+        #
+        # Using the GitHub REST API allows us to identify if the current
+        # repository this GitHub Workflow is running within is a template
+        # repository or not.
+        env:
+          GITHUB_TOKEN: ${{ env.REPO_SETUP_TOKEN }}
+        run: |
+          RESULT=$(gh api /repos/$GITHUB_REPOSITORY --jq .is_template)
+          echo "template=${RESULT}" >> $GITHUB_OUTPUT
+          if [[ "${RESULT" == "true" ]]
+          then
+            echo "::notice::This is a template repository. Skipping initialisation."
+          fi
+
+      - name: Checkout the repository
+        if: steps.check.outputs.template == 'false'
+        uses: actions/checkout@v3
+        with:
+          # Committing GitHub Workflow files using the regular GITHUB_TOKEN will
+          # fail with the following error:
+          #
+          #   Git Error: Refusing to allow a GitHub App to create or update
+          #              workflow without workflows permission`.
+          #
+          # This is by design, as so to prevent third-parties from adding
+          # malicious Workflow files.
+          #
+          # To bypass this, generate a new Personal Access Token (Classic type)
+          # with the Workflow `scope`, and set it as an Environment Variable for
+          # GitHub Actions called COOKIE_CUTTER_TOKEN for the repository (or as
+          # an Organisation Environment Variable, with the repository assigned
+          # to it).
+          #
+          # Also make sure that any branch protections for the master or main
+          # branches are disabled first (if created), specifically:
+          #   - disable the "Do not allow bypassing the above settings"; and
+          #   - enable the "Allow force pushes" for "Everyone".
+          token: ${{ env.REPO_SETUP_TOKEN }}
+
+      - name: Set up Python v3.11
+        if: steps.check.outputs.template == 'false'
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.11
+
+      - name: Set up Go v1.20
+        uses: actions/setup-go@v4
+        with:
+          go-version: v1.20
+          check-latest: true
+          cache-dependency-path: .github/workflows/initialise-repository.yaml
+
+      - name: Install task v3.23.0
+        run: go install github.com/go-task/task/v3/cmd/task@v3.23.0
+
+      - name: Install Python requirements
+        if: steps.check.outputs.template == 'false'
+        run: task dependencies
+
+      - name: Render the templates
+        if: steps.check.outputs.template == 'false'
+        run: task render
+
+      - name: Clean the repository
+        if: steps.check.outputs.template == 'false'
+        # Remove all files and folders except .git/ and render/ (and the
+        # cookiecutter.json file). The .git/ directory is kept to retain the
+        # repository settings (including authentication). As we're building this
+        # in an orphaned branch we do not need to worry about clearing history.
+        run: |
+          find ./ -maxdepth 1 \
+            ! -name '.git' \
+            ! -name 'render' \
+            ! -name 'cookiecutter.json' \
+            ! -name '.' \
+            ! -exec rm -rf {} +
+
+      - name: Move the rendered templates
+        if: steps.check.outputs.template == 'false'
+        # The render/ folder contains a single folder, within which is the
+        # rendered templates cookiecutter. Having cleaned out the repository of
+        # all but the rendered files and the cookiecutter.json configuration
+        # file, we can now move the rendered filed into the root of the
+        # repository.
+        run: |
+          rsync -rv ./render/${GITHUB_REPOSITORY#*/}/ . && \
+          rm -rf ./render/
+
+      - name: Re-initialize the repository
+        if: steps.check.outputs.template == 'false'
+        # Reinitialize the repository with Git after moving the rendered into
+        # this repository. We use `git checkout --orphan` to create a branch in
+        # a git init-like state. By force-pushing this back to the repository as
+        # `main` we end up with a new clean git history.
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan initial-commit
+          git add .
+          git commit \
+            -m "Initial repository bootstrap" \
+            -m "The initial bootstrap configuration of this repository, built by cookiecutter."
+          git push origin initial-commit:main --force

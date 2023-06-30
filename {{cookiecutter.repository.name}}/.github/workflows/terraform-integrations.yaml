@@ -1,0 +1,69 @@
+---
+name: Terraform Integrations
+
+on:
+  workflow_call:
+    # No inputs are required, as all information about the event will be pulled
+    # in from the context of the event itself
+
+permissions:
+  id-token: write
+  contents: write
+  issues: write
+  checks: write
+  pull-requests: write
+
+jobs:
+  module:
+    name: Module
+    uses: n3tuk/workflows-reusable/.github/workflows/terraform-checks.yaml@v1.0.0
+    secrets: inherit
+{%- if cookiecutter.components.submodules|length > 0 %}
+    needs:
+{%- for name in cookiecutter.components.submodules|sort %}
+      - submodule-{{ name }}
+{%- endfor %}
+{%- endif %}
+    with:
+      working-directory: .
+      type: module
+      name: Module
+{%- for name in cookiecutter.components.submodules|sort %}
+
+  submodule-{{ name }}:
+    name: Submodule
+    uses: n3tuk/workflows-reusable/.github/workflows/terraform-checks.yaml@v1.0.0
+    secrets: inherit
+    with:
+      working-directory: submodules/{{ name }}
+      type: submodule
+      name: {{ name }} Submodule
+{%- endfor %}
+{%- for name in cookiecutter.components.examples|sort %}
+
+  example-{{ name }}:
+    name: Example
+    uses: n3tuk/workflows-reusable/.github/workflows/terraform-checks.yaml@v1.0.0
+    secrets: inherit
+    needs:
+      - module
+    with:
+      working-directory: examples/{{ name }}
+      type: example
+      name: {{ name }} Example
+{%- endfor %}
+
+  testing:
+    name: Testing
+    uses: n3tuk/workflows-reusable/.github/workflows/terraform-tests.yaml@v1.0.0
+    secrets: inherit
+    needs:
+{%- for name in cookiecutter.components.examples|sort %}
+      - example-{{ name }}
+{%- endfor %}
+{%- if cookiecutter.components.terratest|length > 0 %}
+    with:
+{%- for key, value in cookiecutter.components.terratest.options|dictsort %}
+      {{ key }}: {{ value }}
+{%- endfor %}
+{%- endif %}

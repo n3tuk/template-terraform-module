@@ -1,0 +1,99 @@
+---
+version: 3
+
+tasks:
+  default:
+    desc: Run the standard validation check and documentation generation
+    cmds:
+      - task: fmt
+      - task: docs
+      - task: lint
+      - task: security
+
+  pre-checks:
+    desc: Check the environment before running
+    internal: true
+    silent: true
+    run: once
+    cmds:
+      - cmd: |-
+          test -x "$(which terraform 2>/dev/null)" \
+            || (echo "Cannot find 'terraform'. Please install before trying again."; exit 1)
+      - cmd: |-
+          test -x "$(which terraform-docs 2>/dev/null)" \
+            || (echo "Cannot find 'terraform'-docs. Please install before trying again."; exit 1)
+      - cmd: |-
+          test -n "$(which markdownlint 2>/dev/null)" \
+            || (echo "Cannot find 'markdownlint'. Please install before trying again."; exit 1)
+      - cmd: |-
+          test -x "$(which tflint 2>/dev/null)" \
+            || (echo "Cannot find 'tflint'. Please install before trying again."; exit 1)
+      - cmd: |-
+          test -x "$(which tfsec 2>/dev/null)" \
+            || (echo "Cannot find 'tfsec'. Please install before trying again."; exit 1)
+    status:
+      # Setting this file will bypass pre-checks (only use if you are sure)
+      - test -f ../../.skip-pre-checks
+
+  docs:
+    desc: Update the README.md file for this Terraform module
+    summary: |
+      Update the README.md files for this Terraform module using terraform-docs
+      to ensure that the documentation is up-to-date.
+    deps:
+      - task: pre-checks
+    sources:
+      - '*.tf'
+      - '.terraform-docs.yaml'
+      - '.markdownlint.yaml'
+    cmds:
+      - cmd: terraform-docs --config .terraform-docs.yaml .
+      - cmd: markdownlint --config .markdownlint.yaml *.md
+    generates:
+      - 'README.md'
+
+  fmt:
+    desc: Reformat the syntax of the Terraform module
+    summary: |
+      Reformat the Terraform module using terraform.
+    deps:
+      - task: pre-checks
+    sources:
+      - '*.tf'
+    cmds:
+      - cmd: terraform fmt -write=true
+
+  lint:
+    desc: Run initial validation of the run-time configuration
+    summary: |
+      Run linting checks against the module to check run-time values, such as
+      instance types and naming.
+    deps:
+      - task: pre-checks
+    sources:
+      - '.tflint.hcl'
+      - '*.tf'
+    cmds:
+      - cmd: tflint --config .tflint.hcl --color --init
+      - cmd: tflint --config .tflint.hcl --color
+
+  security:
+    desc: Statically analyise the Terraform module
+    summary: |
+      Run static analysis across the Terraform module using tfsec to find any bad
+      configurations or potential security issues.
+    deps:
+      - task: pre-checks
+    sources:
+      - '*.tf'
+    cmds:
+      - cmd: tfsec --concise-output .
+
+  clean:
+    desc: Remove all temporary files from this module
+    Summary: |
+      Run commands to clean out all temporary files and cached resources from
+      this module.
+    cmds:
+      - cmd: rm -rf .terraform
+      - cmd: rm -rf .terraform.lock.hcl

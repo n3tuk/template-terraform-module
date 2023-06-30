@@ -1,0 +1,10 @@
+*.tf
+*.tfvars
+README.md
+.snyk
+.tflint.hcl
+submodules/*
+examples/*
+tests/*.go
+tests/*.sum
+tests/*.mod

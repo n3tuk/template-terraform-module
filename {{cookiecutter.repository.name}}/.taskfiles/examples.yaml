@@ -1,0 +1,9 @@
+---
+version: 3
+
+includes:
+{%- for name in cookiecutter.components.examples|sort %}
+  {{ name }}:
+    taskfile: example.yaml
+    dir: ../examples/{{ name }}
+{%- endfor %}
