@@ -1,0 +1,159 @@
+---
+version: 3
+output: group
+interval: 1000ms
+
+includes:
+  module:
+    taskfile: .taskfiles/module.yaml
+{%- if cookiecutter.components.submodules|length > 0 %}
+  submodules:
+    taskfile: .taskfiles/submodules.yaml
+{%- endif %}
+{%- if cookiecutter.components.examples|length > 0 %}
+  examples:
+    taskfile: .taskfiles/examples.yaml
+{%- endif %}
+  tests:
+    taskfile: .taskfiles/tests.yaml
+    dir: tests
+  local:
+    taskfile: .taskfiles/local.yaml
+    optional: true
+
+tasks:
+  default:
+    desc: Run the default tasks
+    deps:
+      - task: pre-checks
+      - task: pre-commit
+    cmds:
+      - task: validate
+      - task: lint
+      - task: security
+      - task: docs
+
+  run:
+    desc: Run the all the tasks
+    summary: |
+      Force run (by first cleaning up) all the tasks for both the Terraform
+      module, and the examples as well, including initialisation, validation,
+      formatting checks, security analysis, and integration testing of the
+      module examples using TerraTest.
+    cmds:
+      - task: clean
+      - task: validate
+      - task: docs
+      - task: lint
+      - task: security
+      - task: tests:run
+
+  pre-checks:
+    desc: Check the environment before running
+    internal: true
+    silent: true
+    run: once
+    cmds:
+      - cmd: |-
+          test -x "$(which pre-commit 2>/dev/null)" \
+            || (echo "Cannot find 'pre-commit'. Please install before trying again."; exit 1)
+    status:
+      # Setting this file will bypass pre-checks (only use if you are sure)
+      - test -f .skip-pre-checks
+
+  pre-commit:
+    desc: Set up the pre-commit hook in this repository
+    internal: true
+    silent: true
+    deps:
+      - task: pre-checks
+    cmds:
+      - cmd: pre-commit install
+    generates:
+      - .git/hooks/pre-commit
+    status:
+      - test -f .git/hooks/pre-commit
+
+  docs:
+    desc: Update README.md files with terraform-docs
+    summary: |
+      Update all README.md files in this Terraform module, as well as all
+      the example configurations, using terraform-docs to ensure that all
+      documentation is up-to-date with the current configuration.
+    cmds:
+{%- for name in cookiecutter.components.submodules|sort %}
+      - task: submodules:{{ name }}:docs
+{%- endfor %}
+      - task: module:docs
+{%- for name in cookiecutter.components.examples|sort %}
+      - task: examples:{{ name }}:docs
+{%- endfor %}
+
+  fmt:
+    desc: Reformat the files
+    summary: |
+      Reformat the Terraform module and all the example Terraform configurations
+      for this module.
+    cmds:
+{%- for name in cookiecutter.components.submodules|sort %}
+      - task: submodules:{{ name }}:fmt
+{%- endfor %}
+      - task: module:fmt
+{%- for name in cookiecutter.components.examples|sort %}
+      - task: examples:{{ name }}:fmt
+{%- endfor %}
+
+  validate:
+    desc: Validate the example configurations
+    summary: |
+      Validate the example Terraform configurations for this module to ensure
+      that the code is correct and can be processed by Terraform.
+    cmds:
+{%- for name in cookiecutter.components.examples|sort %}
+      - task: examples:{{ name }}:validate
+{%- endfor %}
+
+  lint:
+    desc: Lint the files
+    summary: |
+      Run linting checks across the module using tflint to find any potential
+      issues with the configurations before run-time deployment.
+    cmds:
+{%- for name in cookiecutter.components.submodules|sort %}
+      - task: submodules:{{ name }}:lint
+{%- endfor %}
+      - task: module:lint
+{%- for name in cookiecutter.components.examples %}
+      - task: examples:{{ name }}:lint
+{%- endfor %}
+
+  security:
+    desc: Run static analysis using tfsec
+    summary: |
+      Run static analysis across the Terraform module using tfsec to find any
+      bad configurations or potential security issues.
+    cmds:
+{%- for name in cookiecutter.components.submodules|sort %}
+      - task: submodules:{{ name }}:security
+{%- endfor %}
+      - task: module:security
+{%- for name in cookiecutter.components.examples %}
+      - task: examples:{{ name }}:security
+{%- endfor %}
+
+  clean:
+    desc: Clean temporary files from the repository
+    summary: |
+      Remove any temporary files from the module, submodules, and the example
+      configurations, as well as integration testing.
+    run: once
+    cmds:
+{%- for name in cookiecutter.components.submodules|sort %}
+      - task: submodules:{{ name }}:clean
+{%- endfor %}
+      - task: module:clean
+{%- for name in cookiecutter.components.examples %}
+      - task: examples:{{ name }}:clean
+{%- endfor %}
+      - task: tests:clean
+      - cmd: rm -rf .task

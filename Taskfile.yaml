@@ -1,0 +1,74 @@
+---
+version: 3
+output: group
+
+tasks:
+  default:
+    desc: Render the cookiecutter templates
+    cmds:
+      - task: pre-commit
+      - task: render
+
+  pre-checks:
+    desc: Check the environment before running
+    internal: true
+    silent: true
+    run: once
+    cmds:
+      - cmd: |-
+          test -x "$(which python 2>/dev/null)" \
+            || (echo "Cannot find 'python'. Please install before trying again."; exit 1)
+      - cmd: |-
+          test -x "$(which pip 2>/dev/null)" \
+            || (echo "Cannot find 'pip'. Please install before trying again."; exit 1)
+      - cmd: |-
+          test -x "$(which pre-commit 2>/dev/null)" \
+            || (echo "Cannot find 'pre-commit'. Please install before trying again."; exit 1)
+    status:
+      # Setting this file will bypass pre-checks (only use if you are sure)
+      - test -f .skip-pre-checks
+
+  pre-commit:
+    desc: Add the `pre-commit` hook to this repository
+    internal: true
+    silent: true
+    run: once
+    deps:
+      - task: pre-checks
+    cmds:
+      - pre-commit install
+    generates:
+      - .git/hooks/pre-commit
+
+  dependencies:
+    desc: Install required Python dependencies in a virtual environment
+    silent: true
+    run: once
+    sources:
+      - requirements.txt
+    cmds:
+      - cmd: |-
+          python -m venv .venv && \
+          source .venv/bin/activate && \
+          pip install -r requirements.txt
+    generates:
+      - .venv/bin/cookiecutter
+
+  render:
+    desc: Render the cookiecutter templates
+    deps:
+      - task: dependencies
+    sources:
+      - cookiecutter.json
+      - '\{\{cookiecutter.repository.name\}\}/**'
+    cmds:
+      - cmd: |-
+          source .venv/bin/activate && \
+          cookiecutter . --no-input --output-dir ./render
+
+  clean:
+    desc: Clean up temporary files and the virtual environment
+    cmds:
+      - cmd: rm -rf render
+      - cmd: rm -rf .venv
+      - cmd: rm -rf .task

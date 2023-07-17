@@ -1,0 +1,42 @@
+---
+name: Pull Requester
+
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - edited
+      # Catch when added labels are forcefully removed
+      - unlabeled
+    branches:
+      - main
+
+defaults:
+  run:
+    # Error handling and pipefile must be explicitly set via the default shell
+    #   https://github.com/actions/runner/issues/353#issuecomment-1067227665
+    shell: bash --noprofile --norc -eo pipefail {0}
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  pull-requester:
+    runs-on: ubuntu-latest
+    name: Check the Pull Request
+
+    concurrency:
+      # Ensure that only a single concurrent job is run for any Pull Requester
+      # event on any one pull request (or github.event.number here), and bias
+      # that to the most recently started job, which will likely have the most
+      # complete information to process the metadata with.
+      group: pull-requester-${{ github.event.number }}
+      cancel-in-progress: true
+
+    steps:
+      - name: Pull Requester
+        uses: n3tuk/action-pull-requester@v1

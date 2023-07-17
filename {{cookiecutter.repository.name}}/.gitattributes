@@ -1,0 +1,2 @@
+# Ensure that local mods to cookiecutter.json are preserved
+cookiecutter.json merge=ours

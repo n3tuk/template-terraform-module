@@ -1,0 +1,95 @@
+---
+version: 3
+
+tasks:
+  default:
+    desc: Run the default tasks
+    cmds:
+      - task: fmt
+      - task: docs
+      - task: lint
+      - task: security
+
+  pre-checks:
+    desc: Check the environment before running
+    internal: true
+    silent: true
+    run: once
+    cmds:
+      - cmd: |-
+          test -x "$(which terraform 2>/dev/null)" \
+            || (echo "Cannot find 'terraform'. Please install before trying again."; exit 1)
+      - cmd: |-
+          test -x "$(which terraform-docs 2>/dev/null)" \
+            || (echo "Cannot find 'terraform'-docs. Please install before trying again."; exit 1)
+      - cmd: |-
+          test -n "$(which markdownlint 2>/dev/null)" \
+            || (echo "Cannot find 'markdownlint'. Please install before trying again."; exit 1)
+      - cmd: |-
+          test -x "$(which tflint 2>/dev/null)" \
+            || (echo "Cannot find 'tflint'. Please install before trying again."; exit 1)
+      - cmd: |-
+          test -x "$(which tfsec 2>/dev/null)" \
+            || (echo "Cannot find 'tfsec'. Please install before trying again."; exit 1)
+    status:
+      # Setting this file will bypass pre-checks (only use if you are sure)
+      - test -f ../../.skip-pre-checks
+
+  docs:
+    desc: Update the README.md file for this Terraform Submodule
+    summary: |
+      Update all README.md files for this Terraform Submodule using
+      terraform-docs to ensure that all documentation is up-to-date.
+    deps:
+      - task: pre-checks
+    sources:
+      - '*.tf'
+      - '../../.terraform-docs.yaml'
+      - '../../.markdownlint.yaml'
+    cmds:
+      - cmd: terraform-docs --config ../../.terraform-docs.yaml .
+      - cmd: markdownlint --config ../../.markdownlint.yaml *.md
+    generates:
+      - 'README.md'
+
+  fmt:
+    desc: Reformat the syntax of the Terraform Submodule
+    summary: |
+      Reformat the Terraform Submodule using terraform.
+    deps:
+      - task: pre-checks
+    sources:
+      - '*.tf'
+    cmds:
+      - cmd: terraform fmt -write=true
+
+  lint:
+    desc: Run initial validation of the run-time configuration
+    summary: |
+      Run linting checks against the Submodule to check run-time values,
+      such as instance types and naming.
+    sources:
+      - '../../.tflint.hcl'
+      - '*.tf'
+    cmds:
+      - cmd: tflint --config ../../.tflint.hcl --color --init
+      - cmd: tflint --config ../../.tflint.hcl --color
+
+  security:
+    desc: Statically analyise the Terraform Submodule
+    summary: |
+      Run static analysis across the Terraform Submodule using tfsec to find any
+      bad configurations or potential security issues.
+    sources:
+      - '*.tf'
+    cmds:
+      - cmd: tfsec --concise-output .
+
+  clean:
+    desc: Remove all temporary files from this Submodule
+    summary: |
+      Run commands to clean out all temporary files and cached resources from
+      this Submodule.
+    cmds:
+      - cmd: rm -rf .terraform
+      - cmd: rm -rf .terraform.lock.hcl
