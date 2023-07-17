@@ -64,7 +64,7 @@ pull_request_rules:
       - "-closed"
     actions:
       merge:
-        method: rebase
+        method: merge
 
   # If there is a conflict between this pull request and the default branch, or
   # this pull request has failed behind the default branch due to other pull
