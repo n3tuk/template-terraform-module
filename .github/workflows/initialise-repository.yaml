@@ -49,7 +49,7 @@ jobs:
 
       - name: Checkout the repository
         if: steps.check.outputs.template == 'false'
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           # Committing GitHub Workflow files using the regular GITHUB_TOKEN will
           # fail with the following error:
