@@ -92,7 +92,7 @@ jobs:
           restore-keys: terraform-${{ runner.os }}-
 
       - name: Setup the Terraform environment with v1.4.6
-        uses: hashicorp/setup-terraform@v2
+        uses: hashicorp/setup-terraform@v3
         with:
           # As we not longer include terraform-version.js inside the
           # configuration, we cannot automatically fetch the default version for
