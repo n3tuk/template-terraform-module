@@ -29,8 +29,8 @@ tasks:
           test -x "$(which tflint 2>/dev/null)" \
             || (echo "Cannot find 'tflint'. Please install before trying again."; exit 1)
       - cmd: |-
-          test -x "$(which tfsec 2>/dev/null)" \
-            || (echo "Cannot find 'tfsec'. Please install before trying again."; exit 1)
+          test -x "$(which trivy 2>/dev/null)" \
+            || (echo "Cannot find 'trivy'. Please install before trying again."; exit 1)
     status:
       # Setting this file will bypass pre-checks (only use if you are sure)
       - test -f ../../.skip-pre-checks
@@ -43,14 +43,14 @@ tasks:
     deps:
       - task: pre-checks
     sources:
-      - '*.tf'
-      - '.terraform-docs.yaml'
-      - '.markdownlint.yaml'
+      - "*.tf"
+      - ".terraform-docs.yaml"
+      - ".markdownlint.yaml"
     cmds:
       - cmd: terraform-docs --config .terraform-docs.yaml .
       - cmd: markdownlint --config .markdownlint.yaml *.md
     generates:
-      - 'README.md'
+      - "README.md"
 
   fmt:
     desc: Reformat the syntax of the Terraform module
@@ -59,7 +59,7 @@ tasks:
     deps:
       - task: pre-checks
     sources:
-      - '*.tf'
+      - "*.tf"
     cmds:
       - cmd: terraform fmt -write=true
 
@@ -71,8 +71,8 @@ tasks:
     deps:
       - task: pre-checks
     sources:
-      - '.tflint.hcl'
-      - '*.tf'
+      - ".tflint.hcl"
+      - "*.tf"
     cmds:
       - cmd: tflint --config .tflint.hcl --color --init
       - cmd: tflint --config .tflint.hcl --color
@@ -80,14 +80,15 @@ tasks:
   security:
     desc: Statically analyise the Terraform module
     summary: |
-      Run static analysis across the Terraform module using tfsec to find any bad
+      Run static analysis across the Terraform module using trivy to find any bad
       configurations or potential security issues.
     deps:
       - task: pre-checks
     sources:
-      - '*.tf'
+      - ".trivy.yaml"
+      - "*.tf"
     cmds:
-      - cmd: tfsec --concise-output .
+      - cmd: trivy --config .trivy.yaml fs .
 
   clean:
     desc: Remove all temporary files from this module

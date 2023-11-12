@@ -128,10 +128,10 @@ tasks:
 {%- endfor %}
 
   security:
-    desc: Run static analysis using tfsec
+    desc: Run static analysis against Terraform
     summary: |
-      Run static analysis across the Terraform module using tfsec to find any
-      bad configurations or potential security issues.
+      Run static analysis across the Terraform module to find any bad
+      configurations or potential security issues.
     cmds:
 {%- for name in cookiecutter.components.submodules|sort %}
       - task: submodules:{{ name }}:security

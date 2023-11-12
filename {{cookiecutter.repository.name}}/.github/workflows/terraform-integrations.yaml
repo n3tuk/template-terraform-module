@@ -2,9 +2,11 @@
 name: Terraform Integrations
 
 on:
+  # Configure this integration workflow up to be called by other workflows only
+  # (i.e. the terraform-trigger-label and terraform-trigger-pr workflows in this
+  # repository). No inputs are required, as all information about the event will
+  # be pulled in from the context of the event itself
   workflow_call:
-    # No inputs are required, as all information about the event will be pulled
-    # in from the context of the event itself
 
 permissions:
   id-token: write
@@ -16,7 +18,7 @@ permissions:
 jobs:
   module:
     name: Module
-    uses: n3tuk/workflows-reusable/.github/workflows/terraform-checks.yaml@v1.0.0
+    uses: n3tuk/workflows-reusable/.github/workflows/terraform-checks.yaml@v1.2
     secrets: inherit
 {%- if cookiecutter.components.submodules|length > 0 %}
     needs:
@@ -32,7 +34,7 @@ jobs:
 
   submodule-{{ name }}:
     name: Submodule
-    uses: n3tuk/workflows-reusable/.github/workflows/terraform-checks.yaml@v1.0.0
+    uses: n3tuk/workflows-reusable/.github/workflows/terraform-checks.yaml@v1.2
     secrets: inherit
     with:
       working-directory: submodules/{{ name }}
@@ -43,7 +45,7 @@ jobs:
 
   example-{{ name }}:
     name: Example
-    uses: n3tuk/workflows-reusable/.github/workflows/terraform-checks.yaml@v1.0.0
+    uses: n3tuk/workflows-reusable/.github/workflows/terraform-checks.yaml@v1.2
     secrets: inherit
     needs:
       - module
@@ -55,7 +57,7 @@ jobs:
 
   testing:
     name: Testing
-    uses: n3tuk/workflows-reusable/.github/workflows/terraform-tests.yaml@v1.0.0
+    uses: n3tuk/workflows-reusable/.github/workflows/terraform-tests.yaml@v1.2
     secrets: inherit
     needs:
 {%- for name in cookiecutter.components.examples|sort %}
