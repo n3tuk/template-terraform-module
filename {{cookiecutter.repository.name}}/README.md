@@ -7,6 +7,7 @@ as [`{{ cookiecutter.name }}/{{ cookiecutter.provider }}`][module].
 [n3tuk]: https://github.com/n3tuk
 [tfc]: https://app.terraform.io/app
 [pmr]: https://app.terraform.io/app/n3tuk/registry/private/modules
+
 [module]: https://app.terraform.io/app/n3tuk/registry/modules/private/n3tuk/{{ cookiecutter.name }}/{{ cookiecutter.provider }}
 
 > **Warning**
@@ -63,12 +64,12 @@ This Terraform module uses a set of tools such as [Taskfile (or
 `task`)][taskfile] and [`pre-commit`][pre-commit] to manage this repository
 through development, testing and committing stages, as well as the utility
 [`terraform-docs`][terraform-docs] to automatically manage the documentation,
-and [`tfsec`][tfsec] for static security analysis of the configuration.
+and [`trivy`][trivy] for static security analysis of the configuration.
 
 [taskfile]: https://taskfile.dev/
 [pre-commit]: https://pre-commit.com/
 [terraform-docs]: https://terraform-docs.io/
-[tfsec]: https://github.com/aquasecurity/tfsec
+[trivy]: https://github.com/aquasecurity/trivy
 
 For full details on how to work with this repository and these tools, see the
 [`CONTRIBUTING.md`][contributing-md] document in this repository.
