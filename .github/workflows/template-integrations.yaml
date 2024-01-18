@@ -85,7 +85,7 @@ jobs:
           mkdir -p $HOME/.tflint.d/plugins
 
       - name: Cache the Terraform providers
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ~/.terraform.d/plugin-cache
           key: terraform-${{ runner.os }}-${{ hashFiles('**/terraform.tf') }}
@@ -122,7 +122,7 @@ jobs:
         run: terraform fmt -check -diff
 
       - name: Cache the tflint plugins directory
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ~/.tflint.d/plugins
           key: tflint-${{ runner.os }}-${{ hashFiles('.tflint.hcl') }}
