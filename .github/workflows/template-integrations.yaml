@@ -46,7 +46,7 @@ jobs:
         run: task render
 
       - name: Upload the generated module
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: generated-module
           path: render/name
